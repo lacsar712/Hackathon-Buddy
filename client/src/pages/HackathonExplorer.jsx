@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import useHackathonWatchlist, { useWatchlistUrl } from "../hooks/useHackathonWatchlist";
+import WatchlistPanel from "../components/WatchlistPanel";
+import HackathonCompareView from "../components/HackathonCompareView";
 
 // console.log("import.meta.env.VITE_API_URL :",import.meta.env.VITE_API_URL)
 
@@ -109,9 +112,16 @@ function StatusBadge({ status }) {
   );
 }
 
-function HackathonCard({ hackathon, index }) {
+function HackathonCard({ hackathon, index, watched, onToggleWatch }) {
   const meta = PLATFORM_META[hackathon.platform] || { color: "#a78bfa" };
   const days = getDaysLeft(hackathon.deadline);
+
+  // 阻止外链跳转：加入/移出意向不触发 <a> 导航
+  const handleWatchClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleWatch(hackathon);
+  };
 
   return (
     <a
@@ -222,9 +232,18 @@ function HackathonCard({ hackathon, index }) {
             className="flex items-center justify-between pt-3"
             style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
           >
-            <span className="text-xs text-slate-500">
-              {days !== null && days > 0 ? `Ends ${formatDeadline(hackathon.deadline)}` : "Deadline TBA"}
-            </span>
+            <button
+              type="button"
+              onClick={handleWatchClick}
+              className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all duration-200"
+              style={
+                watched
+                  ? { color: "#f87171", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)" }
+                  : { color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.25)" }
+              }
+            >
+              {watched ? "移出意向" : "加入意向"}
+            </button>
             <span
               className="inline-flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all duration-200"
               style={{ color: meta.color }}
@@ -287,6 +306,15 @@ export default function HackathonExplorer() {
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [sortBy, setSortBy] = useState("deadline");
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
+
+  // 意向清单（逻辑全在 hook；Explorer 仅组装，禁止内联状态机 / setItem）
+  const wl = useHackathonWatchlist();
+  // URL 状态机 (URL-SYNC-A) 同样在逻辑层文件，Explorer 只消费，不拼 query
+  const url = useWatchlistUrl({
+    watchlist: wl.watchlist,
+    notify: wl.notify,
+    checkCompareCount: wl.checkCompareCount,
+  });
 
   const fetchHackathons = useCallback(async () => {
     setLoading(true);
@@ -570,7 +598,7 @@ export default function HackathonExplorer() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map((h, i) => (
               <div key={h.id} className="card-enter">
-                <HackathonCard hackathon={h} index={i} />
+                <HackathonCard hackathon={h} index={i} watched={wl.isWatched(h.id)} onToggleWatch={wl.toggle} />
               </div>
             ))}
           </div>
@@ -602,6 +630,69 @@ export default function HackathonExplorer() {
           </div>
         )}
       </div>
+
+      {/* ── 意向清单入口徽章 (n/6) ── */}
+      <button
+        onClick={url.openPanel}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold text-white transition-all hover:scale-105"
+        style={{ background: "linear-gradient(135deg, #3770FF, #7c3aed)", boxShadow: "0 8px 24px rgba(55,112,255,0.4)" }}
+        title="意向清单"
+      >
+        <span>📌 意向清单</span>
+        <span className="px-2 py-0.5 rounded-full text-xs" style={{ background: "rgba(255,255,255,0.2)" }}>
+          {wl.count}/{wl.MAX_WATCH}
+        </span>
+      </button>
+
+      {/* ── 意向面板（开关走 URL 状态机 URL-SYNC-A）── */}
+      <WatchlistPanel
+        open={url.panelOpen}
+        onClose={url.closePanel}
+        watchlist={wl.watchlist}
+        count={wl.count}
+        isFull={wl.isFull}
+        remove={wl.remove}
+        clear={wl.clear}
+        notify={wl.notify}
+        usingMock={usingMock}
+        MAX_WATCH={wl.MAX_WATCH}
+        COMPARE_MIN={wl.COMPARE_MIN}
+        COMPARE_MAX={wl.COMPARE_MAX}
+        checkCompareCount={wl.checkCompareCount}
+        onCompare={url.openCompare}
+        initialSelected={url.compareIds}
+      />
+
+      {/* ── 对比表（仅当 URL compare 合法时）── */}
+      {url.compareActive && (
+        <HackathonCompareView
+          items={url.compareItems}
+          onClose={url.closeCompare}
+          onRemoveRow={(id) => url.removeFromCompare(id, wl.remove)}
+          notify={wl.notify}
+        />
+      )}
+
+      {/* ── 手写轻量 toast ── */}
+      {wl.toast && (
+        <div
+          key={wl.toast.id}
+          onClick={wl.dismissToast}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-xl text-sm font-semibold text-white cursor-pointer"
+          style={{
+            background:
+              wl.toast.type === "error"
+                ? "rgba(248,113,113,0.95)"
+                : wl.toast.type === "success"
+                ? "rgba(52,211,153,0.95)"
+                : "rgba(30,41,59,0.97)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          }}
+        >
+          {wl.toast.message}
+        </div>
+      )}
     </div>
   );
 }
