@@ -1,4 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useHackathonWatchlist } from "../hooks/useHackathonWatchlist";
+import WatchlistPanel from "../components/WatchlistPanel";
+import HackathonCompareView from "../components/HackathonCompareView";
+import Toast from "../components/Toast";
 
 // console.log("import.meta.env.VITE_API_URL :",import.meta.env.VITE_API_URL)
 
@@ -109,26 +113,33 @@ function StatusBadge({ status }) {
   );
 }
 
-function HackathonCard({ hackathon, index }) {
+function HackathonCard({ hackathon, index, isWatched, onToggleWatch, isComparing }) {
   const meta = PLATFORM_META[hackathon.platform] || { color: "#a78bfa" };
-  const days = getDaysLeft(hackathon.deadline);
+  const watched = isWatched ? isWatched(hackathon.id) : false;
+  const comparing = !!isComparing;
 
   return (
-    <a
-      href={hackathon.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
       className="group block"
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div
-        className="relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
+        className="relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
         style={{
           background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-          border: `1px solid rgba(255,255,255,0.06)`,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          border: `1px solid ${
+            comparing
+              ? "rgba(34,211,238,0.55)"
+              : watched
+                ? "rgba(99,102,241,0.45)"
+                : "rgba(255,255,255,0.06)"
+          }`,
+          boxShadow: comparing
+            ? "0 0 0 1px rgba(34,211,238,0.25), 0 4px 24px rgba(0,0,0,0.3)"
+            : "0 4px 24px rgba(0,0,0,0.3)",
         }}
       >
+        {/* Watched / comparing state is shown via border + chips in the badges row */}
         {/* Glow on hover */}
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl pointer-events-none"
@@ -172,6 +183,30 @@ function HackathonCard({ hackathon, index }) {
 
           {/* Badges row */}
           <div className="flex flex-wrap gap-1.5 mb-3">
+            {watched && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{
+                  background: "rgba(99,102,241,0.2)",
+                  color: "#c7d2fe",
+                  border: "1px solid rgba(99,102,241,0.35)",
+                }}
+              >
+                ✓ 已加意向
+              </span>
+            )}
+            {comparing && (
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{
+                  background: "rgba(34,211,238,0.15)",
+                  color: "#67e8f9",
+                  border: "1px solid rgba(34,211,238,0.35)",
+                }}
+              >
+                ⚖ 对比中
+              </span>
+            )}
             <PlatformBadge platform={hackathon.platform} />
             <StatusBadge status={hackathon.status} />
             <DeadlineBadge deadline={hackathon.deadline} />
@@ -219,25 +254,58 @@ function HackathonCard({ hackathon, index }) {
 
           {/* CTA */}
           <div
-            className="flex items-center justify-between pt-3"
+            className="flex items-center justify-between gap-2 pt-3"
             style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
           >
-            <span className="text-xs text-slate-500">
-              {days !== null && days > 0 ? `Ends ${formatDeadline(hackathon.deadline)}` : "Deadline TBA"}
-            </span>
-            <span
-              className="inline-flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all duration-200"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onToggleWatch) onToggleWatch(hackathon);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-[1.03] active:scale-95"
+              style={{
+                background: watched
+                  ? "rgba(239,68,68,0.12)"
+                  : "rgba(99,102,241,0.14)",
+                color: watched ? "#fca5a5" : "#a5b4fc",
+                border: `1px solid ${
+                  watched ? "rgba(239,68,68,0.28)" : "rgba(99,102,241,0.3)"
+                }`,
+              }}
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                fill={watched ? "currentColor" : "none"}
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                />
+              </svg>
+              {watched ? "移出意向" : "加入意向"}
+            </button>
+            <a
+              href={hackathon.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all duration-200 flex-shrink-0"
               style={{ color: meta.color }}
             >
               View Details
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
-            </span>
+            </a>
           </div>
         </div>
       </div>
-    </a>
+    </div>
   );
 }
 
@@ -287,6 +355,10 @@ export default function HackathonExplorer() {
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [sortBy, setSortBy] = useState("deadline");
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
+
+  // Local watchlist + compare (HB-WATCHLIST-R1 / URL-SYNC-A)
+  // panel/compare open state is driven by URL search params inside the hook.
+  const wl = useHackathonWatchlist();
 
   const fetchHackathons = useCallback(async () => {
     setLoading(true);
@@ -382,17 +454,39 @@ export default function HackathonExplorer() {
                 Aggregated from Devpost, Devfolio, HackerEarth & Unstop — all in one place.
               </p>
             </div>
-            <button
-              onClick={fetchHackathons}
-              disabled={loading}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
-              style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {loading ? "Loading…" : "Refresh"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={wl.openPanel}
+                className="relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
+                style={{ background: "rgba(99,102,241,0.12)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.25)" }}
+                title="意向清单"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                <span className="hidden sm:inline">意向清单</span>
+                <span
+                  className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full text-[10px] font-bold"
+                  style={{
+                    background: wl.isFull ? "rgba(251,191,36,0.2)" : "rgba(99,102,241,0.3)",
+                    color: wl.isFull ? "#fbbf24" : "#c7d2fe",
+                  }}
+                >
+                  {wl.watchlist.length}/{wl.constants.MAX_WATCH}
+                </span>
+              </button>
+              <button
+                onClick={fetchHackathons}
+                disabled={loading}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}
@@ -570,7 +664,13 @@ export default function HackathonExplorer() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map((h, i) => (
               <div key={h.id} className="card-enter">
-                <HackathonCard hackathon={h} index={i} />
+                <HackathonCard
+                  hackathon={h}
+                  index={i}
+                  isWatched={wl.isWatched}
+                  onToggleWatch={wl.toggleWatch}
+                  isComparing={wl.isCompareOpen && wl.compareIds.includes(h.id)}
+                />
               </div>
             ))}
           </div>
@@ -602,6 +702,34 @@ export default function HackathonExplorer() {
           </div>
         )}
       </div>
+
+      <Toast toast={wl.toast} />
+      <WatchlistPanel
+        open={wl.panelOpen}
+        onClose={wl.closePanel}
+        watchlist={wl.watchlist}
+        isFull={wl.isFull}
+        compareIds={wl.compareIds}
+        onToggleCompare={wl.toggleCompare}
+        onStartCompare={wl.startCompare}
+        onRemove={wl.removeFromWatchlist}
+        onClear={wl.clearWatchlist}
+        constants={wl.constants}
+        storageError={wl.storageError}
+      />
+      <HackathonCompareView
+        open={wl.isCompareOpen}
+        items={wl.compareItems}
+        maxPrizeCents={wl.maxPrizeCents}
+        onClose={wl.closeCompare}
+        compareSort={wl.compareSort}
+        onSortChange={wl.setCompareSort}
+        sorts={wl.COMPARE_SORTS}
+        onRemove={wl.removeFromWatchlist}
+        onExport={wl.copyCompareSummary}
+        exportFallback={wl.exportFallback}
+        onDismissExport={wl.dismissExportFallback}
+      />
     </div>
   );
 }
