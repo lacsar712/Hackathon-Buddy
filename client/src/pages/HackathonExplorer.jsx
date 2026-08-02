@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import useHackathonWatchlist, {
+  MAX_WATCH,
+} from "../hooks/useHackathonWatchlist";
+import useWatchlistUrlSync from "../hooks/useWatchlistUrlSync";
+import WatchlistPanel from "../components/WatchlistPanel";
+import HackathonCompareView from "../components/HackathonCompareView";
 
 // console.log("import.meta.env.VITE_API_URL :",import.meta.env.VITE_API_URL)
 
@@ -109,9 +115,33 @@ function StatusBadge({ status }) {
   );
 }
 
-function HackathonCard({ hackathon, index }) {
+function HackathonCard({
+  hackathon,
+  index,
+  inWatchlist,
+  watchlistFull,
+  inCompare,
+  onToggleWatch,
+}) {
   const meta = PLATFORM_META[hackathon.platform] || { color: "#a78bfa" };
   const days = getDaysLeft(hackathon.deadline);
+
+  const handleWatchClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleWatch(hackathon);
+  };
+
+  const borderColor = inCompare
+    ? "rgba(55,112,255,0.55)"
+    : inWatchlist
+      ? "rgba(52,211,153,0.35)"
+      : "rgba(255,255,255,0.06)";
+  const glow = inCompare
+    ? "inset 0 0 0 1px rgba(55,112,255,0.45), 0 0 32px rgba(55,112,255,0.25)"
+    : inWatchlist
+      ? `inset 0 0 0 1px rgba(52,211,153,0.25), 0 0 24px rgba(52,211,153,0.08)`
+      : "0 4px 24px rgba(0,0,0,0.3)";
 
   return (
     <a
@@ -125,8 +155,8 @@ function HackathonCard({ hackathon, index }) {
         className="relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
         style={{
           background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-          border: `1px solid rgba(255,255,255,0.06)`,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          border: `1px solid ${borderColor}`,
+          boxShadow: glow,
         }}
       >
         {/* Glow on hover */}
@@ -135,14 +165,19 @@ function HackathonCard({ hackathon, index }) {
           style={{ boxShadow: `inset 0 0 0 1px ${meta.color}40, 0 0 40px ${meta.color}15` }}
         />
 
-        {/* Featured ribbon */}
-        {hackathon.featured && (
-          <div className="absolute top-3 right-3 z-10">
+        {/* Featured / Compare ribbons */}
+        <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5">
+          {inCompare && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-400/40 shadow-[0_0_12px_rgba(59,130,246,0.35)]">
+              ⚖️ 对比中
+            </span>
+          )}
+          {hackathon.featured && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
               ⭐ Featured
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Top color stripe */}
         <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${meta.color}, ${meta.color}60)` }} />
@@ -219,21 +254,46 @@ function HackathonCard({ hackathon, index }) {
 
           {/* CTA */}
           <div
-            className="flex items-center justify-between pt-3"
+            className="flex items-center justify-between gap-2 pt-3"
             style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
           >
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 truncate">
               {days !== null && days > 0 ? `Ends ${formatDeadline(hackathon.deadline)}` : "Deadline TBA"}
             </span>
-            <span
-              className="inline-flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all duration-200"
-              style={{ color: meta.color }}
+            <button
+              type="button"
+              onClick={handleWatchClick}
+              disabled={!inWatchlist && watchlistFull}
+              className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: inWatchlist
+                  ? "rgba(239,68,68,0.12)"
+                  : "rgba(55,112,255,0.14)",
+                color: inWatchlist ? "#f87171" : meta.color,
+                border: `1px solid ${
+                  inWatchlist
+                    ? "rgba(239,68,68,0.3)"
+                    : "rgba(55,112,255,0.3)"
+                }`,
+              }}
+              title={inWatchlist ? "移出意向清单" : "加入意向清单"}
             >
-              View Details
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </span>
+              {inWatchlist ? (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  已加意向
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  加入意向
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -287,6 +347,62 @@ export default function HackathonExplorer() {
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [sortBy, setSortBy] = useState("deadline");
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
+
+  // Watchlist
+  const watchlist = useHackathonWatchlist();
+  const urlSync = useWatchlistUrlSync(watchlist);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+
+  const showToast = useCallback((message, tone = "info") => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToast({ message, tone, id: Date.now() });
+    toastTimerRef.current = setTimeout(() => setToast(null), 2200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const handleToggleWatch = useCallback(
+    (h) => {
+      const result = watchlist.toggle(h);
+      if (!result.storageAvailable && result.message) {
+        showToast(watchlist.messages.STORAGE_UNAVAILABLE, "error");
+        return;
+      }
+      if (result.message) {
+        const tone =
+          result.message === watchlist.messages.FULL ||
+          result.message === watchlist.messages.INCOMPLETE
+            ? "error"
+            : result.message === watchlist.messages.ADDED
+              ? "success"
+              : result.message === watchlist.messages.REMOVED
+                ? "info"
+                : "info";
+        showToast(result.message, tone);
+      }
+    },
+    [watchlist, showToast],
+  );
+
+  const handleCompare = useCallback((orderedIds) => {
+    urlSync.startCompare(orderedIds);
+  }, [urlSync]);
+
+  const handleRemoveFromCompare = useCallback((id) => {
+    watchlist.remove(id);
+    showToast(watchlist.messages.REMOVED, "info");
+  }, [watchlist, showToast]);
+
+  const handleExportToast = useCallback((msg, tone) => {
+    showToast(msg, tone);
+  }, [showToast]);
 
   const fetchHackathons = useCallback(async () => {
     setLoading(true);
@@ -382,17 +498,57 @@ export default function HackathonExplorer() {
                 Aggregated from Devpost, Devfolio, HackerEarth & Unstop — all in one place.
               </p>
             </div>
-            <button
-              onClick={fetchHackathons}
-              disabled={loading}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
-              style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {loading ? "Loading…" : "Refresh"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (urlSync.compareOpen) {
+                    urlSync.closeCompare();
+                    return;
+                  }
+                  if (urlSync.panelOpen) urlSync.closePanel();
+                  else urlSync.openPanel();
+                }}
+                className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
+                style={{
+                  background: "rgba(55,112,255,0.12)",
+                  color: "#93c5fd",
+                  border: "1px solid rgba(55,112,255,0.3)",
+                }}
+                title="意向清单"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                <span className="hidden sm:inline">意向清单</span>
+                <span
+                  className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-black"
+                  style={{
+                    background: watchlist.isFull
+                      ? "rgba(251,191,36,0.2)"
+                      : "rgba(55,112,255,0.25)",
+                    color: watchlist.isFull ? "#fbbf24" : "#bfdbfe",
+                    border: `1px solid ${
+                      watchlist.isFull
+                        ? "rgba(251,191,36,0.4)"
+                        : "rgba(55,112,255,0.4)"
+                    }`,
+                  }}
+                >
+                  {watchlist.count}/{MAX_WATCH}
+                </span>
+              </button>
+              <button
+                onClick={fetchHackathons}
+                disabled={loading}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}
@@ -570,7 +726,14 @@ export default function HackathonExplorer() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map((h, i) => (
               <div key={h.id} className="card-enter">
-                <HackathonCard hackathon={h} index={i} />
+                <HackathonCard
+                  hackathon={h}
+                  index={i}
+                  inWatchlist={watchlist.has(h.id)}
+                  watchlistFull={watchlist.isFull}
+                  inCompare={urlSync.compareIdSet.has(h.id)}
+                  onToggleWatch={handleToggleWatch}
+                />
               </div>
             ))}
           </div>
@@ -602,6 +765,73 @@ export default function HackathonExplorer() {
           </div>
         )}
       </div>
+
+      {/* Toast (lightweight, hand-rolled — no third-party lib) */}
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[120] px-4 py-2.5 rounded-xl text-xs font-bold shadow-2xl flex items-center gap-2 animate-[cardEnter_0.25s_ease]"
+          style={{
+            background:
+              toast.tone === "error"
+                ? "rgba(220,38,38,0.95)"
+                : toast.tone === "success"
+                  ? "rgba(16,185,129,0.95)"
+                  : "rgba(30,41,59,0.95)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          <span>
+            {toast.tone === "error"
+              ? "⚠️"
+              : toast.tone === "success"
+                ? "✓"
+                : "ℹ️"}
+          </span>
+          {toast.message}
+        </div>
+      )}
+
+      {urlSync.urlToast && (
+        <div
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[121] px-4 py-2.5 rounded-xl text-xs font-bold shadow-2xl flex items-center gap-2 animate-[cardEnter_0.25s_ease]"
+          style={{
+            background:
+              urlSync.urlToast.tone === "error"
+                ? "rgba(220,38,38,0.95)"
+                : "rgba(30,41,59,0.95)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+          onClick={() => urlSync.dismissUrlToast()}
+        >
+          <span>
+            {urlSync.urlToast.tone === "error" ? "⚠️" : "ℹ️"}
+          </span>
+          {urlSync.urlToast.message}
+        </div>
+      )}
+
+      <WatchlistPanel
+        open={urlSync.panelOpen}
+        onClose={urlSync.closePanel}
+        items={watchlist.items}
+        count={watchlist.count}
+        isFull={watchlist.isFull}
+        onRemove={watchlist.remove}
+        onClear={watchlist.clear}
+        onCompare={handleCompare}
+        storageAvailable={watchlist.storageAvailable}
+        messages={watchlist.messages}
+      />
+
+      <HackathonCompareView
+        open={urlSync.compareOpen}
+        items={urlSync.compareItems}
+        onClose={urlSync.closeCompare}
+        onRemoveFromWatchlist={handleRemoveFromCompare}
+        onExportToast={handleExportToast}
+      />
     </div>
   );
 }
