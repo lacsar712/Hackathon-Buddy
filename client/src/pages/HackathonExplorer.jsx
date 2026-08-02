@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import useHackathonWatchlist from "../hooks/useHackathonWatchlist";
+import WatchlistPanel from "../components/WatchlistPanel";
+import HackathonCompareView from "../components/HackathonCompareView";
 
 // console.log("import.meta.env.VITE_API_URL :",import.meta.env.VITE_API_URL)
 
@@ -109,9 +112,16 @@ function StatusBadge({ status }) {
   );
 }
 
-function HackathonCard({ hackathon, index }) {
+function HackathonCard({ hackathon, index, watched, comparing, onToggleWatch }) {
   const meta = PLATFORM_META[hackathon.platform] || { color: "#a78bfa" };
   const days = getDaysLeft(hackathon.deadline);
+
+  // HB-WATCHLIST-R1: 阻止卡片外层 <a> 的外链跳转，仅触发意向 toggle（A1）
+  const handleWatchClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleWatch(hackathon);
+  };
 
   return (
     <a
@@ -125,10 +135,26 @@ function HackathonCard({ hackathon, index }) {
         className="relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
         style={{
           background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-          border: `1px solid rgba(255,255,255,0.06)`,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          // R2-D: 对比中 → 青色描边 + 光晕
+          border: comparing ? "1px solid rgba(34,211,238,0.5)" : "1px solid rgba(255,255,255,0.06)",
+          boxShadow: comparing ? "0 0 24px rgba(34,211,238,0.15), 0 4px 24px rgba(0,0,0,0.3)" : "0 4px 24px rgba(0,0,0,0.3)",
         }}
       >
+        {/* R2-D: 状态角标（已加意向 / 对比中），与右上 Featured 互不遮挡 */}
+        {(watched || comparing) && (
+          <div className="absolute top-3 left-3 z-10 flex gap-1.5">
+            {watched && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                ★ 已加意向
+              </span>
+            )}
+            {comparing && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-cyan-400/20 text-cyan-300 border border-cyan-400/30">
+                ⚖️ 对比中
+              </span>
+            )}
+          </div>
+        )}
         {/* Glow on hover */}
         <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl pointer-events-none"
@@ -219,21 +245,36 @@ function HackathonCard({ hackathon, index }) {
 
           {/* CTA */}
           <div
-            className="flex items-center justify-between pt-3"
+            className="flex items-center justify-between gap-2 pt-3"
             style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
           >
             <span className="text-xs text-slate-500">
               {days !== null && days > 0 ? `Ends ${formatDeadline(hackathon.deadline)}` : "Deadline TBA"}
             </span>
-            <span
-              className="inline-flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all duration-200"
-              style={{ color: meta.color }}
-            >
-              View Details
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </span>
+            <div className="flex items-center gap-3">
+              {/* HB-WATCHLIST-R1: 加入/移出意向（逻辑在 useHackathonWatchlist，卡片不含上限算法） */}
+              <button
+                type="button"
+                onClick={handleWatchClick}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-200 hover:scale-105"
+                style={
+                  watched
+                    ? { background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.35)" }
+                    : { background: "rgba(99,102,241,0.12)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)" }
+                }
+              >
+                {watched ? "★ 移出意向" : "☆ 加入意向"}
+              </button>
+              <span
+                className="inline-flex items-center gap-1 text-xs font-semibold group-hover:gap-2 transition-all duration-200"
+                style={{ color: meta.color }}
+              >
+                View Details
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -287,6 +328,10 @@ export default function HackathonExplorer() {
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [sortBy, setSortBy] = useState("deadline");
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
+
+  // ── HB-WATCHLIST-R1 + URL-SYNC-A: 意向清单 + 对比 ──────────────────────────
+  // 状态机（含 URL 同步、排序、差值）全部在逻辑层 hook，本组件只组装。
+  const watch = useHackathonWatchlist();
 
   const fetchHackathons = useCallback(async () => {
     setLoading(true);
@@ -382,17 +427,36 @@ export default function HackathonExplorer() {
                 Aggregated from Devpost, Devfolio, HackerEarth & Unstop — all in one place.
               </p>
             </div>
-            <button
-              onClick={fetchHackathons}
-              disabled={loading}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
-              style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {loading ? "Loading…" : "Refresh"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* HB-WATCHLIST-R1 + URL-SYNC-A: 意向清单入口（徽章 n/6，打开即写 ?watch=1） */}
+              <button
+                onClick={watch.openPanel}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
+                style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)" }}
+              >
+                ⭐ 意向清单
+                <span
+                  className="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                  style={{
+                    background: watch.isFull ? "rgba(251,191,36,0.2)" : "rgba(99,102,241,0.25)",
+                    color: watch.isFull ? "#fbbf24" : "#c7d2fe",
+                  }}
+                >
+                  {watch.count}/6
+                </span>
+              </button>
+              <button
+                onClick={fetchHackathons}
+                disabled={loading}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-105"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}
@@ -570,7 +634,13 @@ export default function HackathonExplorer() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map((h, i) => (
               <div key={h.id} className="card-enter">
-                <HackathonCard hackathon={h} index={i} />
+                <HackathonCard
+                  hackathon={h}
+                  index={i}
+                  watched={watch.isWatched(h.id)}
+                  comparing={watch.activeCompareIds.includes(String(h.id))}
+                  onToggleWatch={watch.toggleWatch}
+                />
               </div>
             ))}
           </div>
@@ -602,6 +672,31 @@ export default function HackathonExplorer() {
           </div>
         )}
       </div>
+
+      {/* ── HB-WATCHLIST-R1 + URL-SYNC-A: 意向清单面板 + 奖池对比视图 ── */}
+      <WatchlistPanel
+        open={watch.panelOpen}
+        onClose={watch.closeAll}
+        notice={watch.notice}
+        watchlist={watch.watchlist}
+        isFull={watch.isFull}
+        isPersistent={watch.isPersistent}
+        selectedIds={watch.selectedIds}
+        onToggleWatch={watch.toggleWatch}
+        onToggleCompare={watch.toggleCompare}
+        onClear={watch.clearWatchlist}
+        onOpenCompare={watch.openCompareFromSelection}
+      />
+      {watch.compareItems && (
+        <HackathonCompareView
+          items={watch.compareItems}
+          sortMode={watch.compareSort}
+          onSortChange={watch.setCompareSort}
+          onExport={watch.exportCompareSummary}
+          onRemoveRow={watch.removeFromCompare}
+          onClose={watch.closeCompare}
+        />
+      )}
     </div>
   );
 }
