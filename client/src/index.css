@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-hb-bg text-gray-100 font-sans tracking-tight;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-modern-gradient hover:shadow-glow-primary text-white font-bold px-6 py-2.5 rounded-full transition-all duration-300 transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider;
+  }
+  .btn-secondary {
+    @apply bg-hb-border hover:bg-gray-800 text-white font-semibold px-6 py-2.5 rounded-full border border-gray-700 transition-all duration-300 text-sm;
+  }
+  .btn-outline {
+    @apply border-2 border-hb-primary text-hb-primary hover:bg-hb-primary hover:text-white font-bold px-6 py-2.5 rounded-full transition-all duration-300 text-sm;
+  }
+  .card {
+    @apply bg-hb-card border border-hb-border rounded-2xl p-6 shadow-2xl backdrop-blur-xl bg-opacity-80 transition-all duration-300 hover:border-indigo-500/50 hover:shadow-glow-primary;
+  }
+  .input {
+    @apply bg-hb-bg border-2 border-hb-border text-gray-100 rounded-xl px-4 py-3 w-full outline-none transition-all duration-300 focus:border-hb-primary focus:ring-4 focus:ring-hb-primary/10 placeholder-gray-600 text-sm;
+  }
+  .tag {
+    @apply inline-block bg-indigo-950/40 text-indigo-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-indigo-700/50;
+  }
+  .tag-green {
+    @apply inline-block bg-emerald-950/40 text-emerald-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-emerald-700/50;
+  }
+  .glass {
+    @apply bg-hb-card bg-opacity-60 backdrop-blur-md border border-hb-border;
+  }
+  .nav-link {
+    @apply text-gray-400 hover:text-white transition-colors duration-300 font-medium text-sm;
+  }
+  .nav-link-active {
+    @apply text-white font-bold relative after:absolute after:bottom-[-4px] after:left-0 after:w-full after:h-0.5 after:bg-modern-gradient after:rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-hb-border rounded-full hover:bg-gray-700;
+  }
+}
